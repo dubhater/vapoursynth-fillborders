@@ -10,13 +10,7 @@ Usage
 
    fb.FillBorders(clip clip[, int left=0, int right=0, int top=0, int bottom=0, string mode="repeat"])
 
-left
-
-right
-
-top
-
-bottom
+left, right, top, bottom
    Number of pixels to fill on each side. These can be any non-negative numbers, within reason. If they are all 0, the input clip is simply passed through.
 
 mode
