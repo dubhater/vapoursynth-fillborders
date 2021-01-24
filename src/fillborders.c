@@ -197,32 +197,19 @@ static const VSFrameRef *VS_CC fillBordersGetFrame(int n, int activationReason, 
       int plane;
       vsapi->freeFrame(src);
 
-      if (d->vi->format->bytesPerSample == 1) {
-         for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
-            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            int width = vsapi->getFrameWidth(dst, plane);
-            int height = vsapi->getFrameHeight(dst, plane);
-            int stride = vsapi->getStride(dst, plane);
+      int left[2] = { d->left, d->left >> d->vi->format->subSamplingW };
+      int top[2] = { d->top, d->top >> d->vi->format->subSamplingH };
+      int right[2] = { d->right, d->right >> d->vi->format->subSamplingW };
+      int bottom[2] = { d->bottom, d->bottom >> d->vi->format->subSamplingH };
 
-            if (plane) {
-               fillBorders8bit(dstp, width, height, stride, d->left >> d->vi->format->subSamplingW, d->right >> d->vi->format->subSamplingW, d->top >> d->vi->format->subSamplingH, d->bottom >> d->vi->format->subSamplingH, d->mode);
-            } else {
-               fillBorders8bit(dstp, width, height, stride, d->left, d->right, d->top, d->bottom, d->mode);
-            }
-         }
-      } else if (d->vi->format->bytesPerSample == 2) {
-         for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
-            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            int width = vsapi->getFrameWidth(dst, plane);
-            int height = vsapi->getFrameHeight(dst, plane);
-            int stride = vsapi->getStride(dst, plane);
+      for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
+         uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+         int width = vsapi->getFrameWidth(dst, plane);
+         int height = vsapi->getFrameHeight(dst, plane);
+         int stride = vsapi->getStride(dst, plane);
 
-            if (plane) {
-               fillBorders16bit(dstp, width, height, stride, d->left >> d->vi->format->subSamplingW, d->right >> d->vi->format->subSamplingW, d->top >> d->vi->format->subSamplingH, d->bottom >> d->vi->format->subSamplingH, d->mode);
-            } else {
-               fillBorders16bit(dstp, width, height, stride, d->left, d->right, d->top, d->bottom, d->mode);
-            }
-         }
+         (d->vi->format->bytesPerSample == 1 ? fillBorders8bit
+                                             : fillBorders16bit)(dstp, width, height, stride, left[!!plane], right[!!plane], top[!!plane], bottom[!!plane], d->mode);
       }
 
       return dst;
