@@ -31,26 +31,41 @@ static void VS_CC fillBordersInit(VSMap *in, VSMap *out, void **instanceData, VS
 }
 
 
-static void fillBorders8bit(uint8_t *dstp, int width, int height, int stride, int left, int right, int top, int bottom, int mode) {
+template <typename PixelType>
+static inline void vs_memset16(void *ptr, int value, size_t num) {
+    if (sizeof(PixelType) == 1)
+        memset(ptr, value, num);
+    else {
+        PixelType *tptr = (PixelType *)ptr;
+        while (num-- > 0)
+            *tptr++ = (PixelType)value;
+    }
+}
+
+
+template <typename PixelType>
+static void fillBorders(uint8_t *dstp8, int width, int height, int stride, int left, int right, int top, int bottom, int mode) {
    int x, y;
+   PixelType *dstp = (PixelType *)dstp8;
+   stride /= sizeof(PixelType);
 
    if (mode == ModeFillMargins) {
       for (y = top; y < height - bottom; y++) {
-         memset(dstp + stride*y, (dstp + stride*y)[left], left);
-         memset(dstp + stride*y + width - right, (dstp + stride*y + width - right)[-1], right);
+         vs_memset16<PixelType>(dstp + stride*y, (dstp + stride*y)[left], left);
+         vs_memset16<PixelType>(dstp + stride*y + width - right, (dstp + stride*y + width - right)[-1], right);
       }
 
       for (y = top - 1; y >= 0; y--) {
          // copy first pixel
          // copy last eight pixels
          dstp[stride*y] = dstp[stride*(y+1)];
-         memcpy(dstp + stride*y + width - 8, dstp + stride*(y+1) + width - 8, 8);
+         memcpy(dstp + stride*y + width - 8, dstp + stride*(y+1) + width - 8, 8 * sizeof(PixelType));
 
          // weighted average for the rest
          for (x = 1; x < width - 8; x++) {
-            uint8_t prev = dstp[stride*(y+1) + x - 1];
-            uint8_t cur  = dstp[stride*(y+1) + x];
-            uint8_t next = dstp[stride*(y+1) + x + 1];
+            PixelType prev = dstp[stride*(y+1) + x - 1];
+            PixelType cur  = dstp[stride*(y+1) + x];
+            PixelType next = dstp[stride*(y+1) + x + 1];
             dstp[stride*y + x] = (3*prev + 2*cur + 3*next + 4) / 8;
          }
       }
@@ -59,28 +74,28 @@ static void fillBorders8bit(uint8_t *dstp, int width, int height, int stride, in
          // copy first pixel
          // copy last eight pixels
          dstp[stride*y] = dstp[stride*(y-1)];
-         memcpy(dstp + stride*y + width - 8, dstp + stride*(y-1) + width - 8, 8);
+         memcpy(dstp + stride*y + width - 8, dstp + stride*(y-1) + width - 8, 8 * sizeof(PixelType));
 
          // weighted average for the rest
          for (x = 1; x < width - 8; x++) {
-            uint8_t prev = dstp[stride*(y-1) + x - 1];
-            uint8_t cur  = dstp[stride*(y-1) + x];
-            uint8_t next = dstp[stride*(y-1) + x + 1];
+            PixelType prev = dstp[stride*(y-1) + x - 1];
+            PixelType cur  = dstp[stride*(y-1) + x];
+            PixelType next = dstp[stride*(y-1) + x + 1];
             dstp[stride*y + x] = (3*prev + 2*cur + 3*next + 4) / 8;
          }
       }
-  } else if (mode == ModeRepeat) {
+   } else if (mode == ModeRepeat) {
       for (y = top; y < height - bottom; y++) {
-         memset(dstp + stride*y, (dstp + stride*y)[left], left);
-         memset(dstp + stride*y + width - right, (dstp + stride*y + width - right)[-1], right);
+         vs_memset16<PixelType>(dstp + stride*y, (dstp + stride*y)[left], left);
+         vs_memset16<PixelType>(dstp + stride*y + width - right, (dstp + stride*y + width - right)[-1], right);
       }
 
       for (y = 0; y < top; y++) {
-         memcpy(dstp + stride*y, dstp + stride*top, stride);
+         memcpy(dstp + stride*y, dstp + stride*top, stride * sizeof(PixelType));
       }
 
       for (y = height - bottom; y < height; y++) {
-         memcpy(dstp + stride*y, dstp + stride*(height - bottom - 1), stride);
+         memcpy(dstp + stride*y, dstp + stride*(height - bottom - 1), stride * sizeof(PixelType));
       }
    } else if (mode == ModeMirror) {
       for (y = top; y < height - bottom; y++) {
@@ -94,93 +109,11 @@ static void fillBorders8bit(uint8_t *dstp, int width, int height, int stride, in
       }
 
       for (y = 0; y < top; y++) {
-         memcpy(dstp + stride*y, dstp + stride*(top*2 - 1 - y), stride);
+         memcpy(dstp + stride*y, dstp + stride*(top*2 - 1 - y), stride * sizeof(PixelType));
       }
 
       for (y = 0; y < bottom; y++) {
-         memcpy(dstp + stride*(height - bottom + y), dstp + stride*(height - bottom - 1 - y), stride);
-      }
-   }
-}
-
-
-static inline void vs_memset16(void *ptr, int value, size_t num) {
-    uint16_t *tptr = (uint16_t *)ptr;
-    while (num-- > 0)
-        *tptr++ = (uint16_t)value;
-}
-
-
-static void fillBorders16bit(uint8_t *dstp, int width, int height, int stride, int left, int right, int top, int bottom, int mode) {
-   int x, y;
-   uint16_t *dstp16 = (uint16_t *)dstp;
-   stride /= 2;
-
-   if (mode == ModeFillMargins) {
-      for (y = top; y < height - bottom; y++) {
-         vs_memset16(dstp16 + stride*y, (dstp16 + stride*y)[left], left);
-         vs_memset16(dstp16 + stride*y + width - right, (dstp16 + stride*y + width - right)[-1], right);
-      }
-
-      for (y = top - 1; y >= 0; y--) {
-         // copy first pixel
-         // copy last eight pixels
-         dstp16[stride*y] = dstp16[stride*(y+1)];
-         memcpy(dstp16 + stride*y + width - 8, dstp16 + stride*(y+1) + width - 8, 8*2);
-
-         // weighted average for the rest
-         for (x = 1; x < width - 8; x++) {
-            uint16_t prev = dstp16[stride*(y+1) + x - 1];
-            uint16_t cur  = dstp16[stride*(y+1) + x];
-            uint16_t next = dstp16[stride*(y+1) + x + 1];
-            dstp16[stride*y + x] = (3*prev + 2*cur + 3*next + 4) / 8;
-         }
-      }
-
-      for (y = height - bottom; y < height; y++) {
-         // copy first pixel
-         // copy last eight pixels
-         dstp16[stride*y] = dstp16[stride*(y-1)];
-         memcpy(dstp16 + stride*y + width - 8, dstp16 + stride*(y-1) + width - 8, 8*2);
-
-         // weighted average for the rest
-         for (x = 1; x < width - 8; x++) {
-            uint16_t prev = dstp16[stride*(y-1) + x - 1];
-            uint16_t cur  = dstp16[stride*(y-1) + x];
-            uint16_t next = dstp16[stride*(y-1) + x + 1];
-            dstp16[stride*y + x] = (3*prev + 2*cur + 3*next + 4) / 8;
-         }
-      }
-   } else if (mode == ModeRepeat) {
-      for (y = top; y < height - bottom; y++) {
-         vs_memset16(dstp16 + stride*y, (dstp16 + stride*y)[left], left);
-         vs_memset16(dstp16 + stride*y + width - right, (dstp16 + stride*y + width - right)[-1], right);
-      }
-
-      for (y = 0; y < top; y++) {
-         memcpy(dstp16 + stride*y, dstp16 + stride*top, stride*2);
-      }
-
-      for (y = height - bottom; y < height; y++) {
-         memcpy(dstp16 + stride*y, dstp16 + stride*(height - bottom - 1), stride*2);
-      }
-   } else if (mode == ModeMirror) {
-      for (y = top; y < height - bottom; y++) {
-         for (x = 0; x < left; x++) {
-            dstp16[stride*y + x] = dstp16[stride*y + left*2 - 1 - x];
-         }
-
-         for (x = 0; x < right; x++) {
-            dstp16[stride*y + width - right + x] = dstp16[stride*y + width - right - 1 - x];
-         }
-      }
-
-      for (y = 0; y < top; y++) {
-         memcpy(dstp16 + stride*y, dstp16 + stride*(top*2 - 1 - y), stride*2);
-      }
-
-      for (y = 0; y < bottom; y++) {
-         memcpy(dstp16 + stride*(height - bottom + y), dstp16 + stride*(height - bottom - 1 - y), stride*2);
+         memcpy(dstp + stride*(height - bottom + y), dstp + stride*(height - bottom - 1 - y), stride * sizeof(PixelType));
       }
    }
 }
@@ -208,8 +141,8 @@ static const VSFrameRef *VS_CC fillBordersGetFrame(int n, int activationReason, 
          int height = vsapi->getFrameHeight(dst, plane);
          int stride = vsapi->getStride(dst, plane);
 
-         (d->vi->format->bytesPerSample == 1 ? fillBorders8bit
-                                             : fillBorders16bit)(dstp, width, height, stride, left[!!plane], right[!!plane], top[!!plane], bottom[!!plane], d->mode);
+         (d->vi->format->bytesPerSample == 1 ? fillBorders<uint8_t>
+                                             : fillBorders<uint16_t>)(dstp, width, height, stride, left[!!plane], right[!!plane], top[!!plane], bottom[!!plane], d->mode);
       }
 
       return dst;
@@ -290,7 +223,7 @@ static void VS_CC fillBordersCreate(const VSMap *in, VSMap *out, void *userData,
       }
    }
 
-   data = malloc(sizeof(d));
+   data = (FillBordersData *)malloc(sizeof(d));
    *data = d;
 
    vsapi->createFilter(in, out, "FillBorders", fillBordersInit, fillBordersGetFrame, fillBordersFree, fmParallel, 0, data, core);
