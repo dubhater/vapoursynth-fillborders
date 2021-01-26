@@ -36,6 +36,13 @@ Compilation
    ./configure
    make
 
+or
+
+::
+
+    meson build
+    ninja -C build
+
 
 License
 =======
