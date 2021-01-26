@@ -34,6 +34,10 @@ typedef struct {
 
 
 static void VS_CC fillBordersInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    (void)in;
+    (void)out;
+    (void)core;
+
    FillBordersData *d = (FillBordersData *) * instanceData;
    vsapi->setVideoInfo(d->vi, 1, node);
 }
@@ -156,6 +160,8 @@ static void fillBorders(uint8_t *dstp8, int width, int height, int stride, int l
 
 
 static const VSFrameRef *VS_CC fillBordersGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    (void)frameData;
+
    FillBordersData *d = (FillBordersData *) * instanceData;
 
    if (activationReason == arInitial) {
@@ -212,6 +218,8 @@ static const VSFrameRef *VS_CC fillBordersGetFrame(int n, int activationReason, 
 
 
 static void VS_CC fillBordersFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    (void)core;
+
    FillBordersData *d = (FillBordersData *)instanceData;
 
    vsapi->freeNode(d->node);
@@ -220,6 +228,8 @@ static void VS_CC fillBordersFree(void *instanceData, VSCore *core, const VSAPI 
 
 
 static void VS_CC fillBordersCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    (void)userData;
+
    FillBordersData d;
    FillBordersData *data;
    int err;
