@@ -13,6 +13,13 @@ enum FillMode {
 };
 
 
+enum InterlacedValues {
+    InterlacedAuto = -1,
+    NotInterlaced = 0,
+    Interlaced = 1,
+};
+
+
 typedef struct {
    VSNodeRef *node;
    const VSVideoInfo *vi;
@@ -22,6 +29,7 @@ typedef struct {
    int top;
    int bottom;
    int mode;
+   int interlaced;
 } FillBordersData;
 
 
@@ -44,7 +52,7 @@ static inline void vs_memset16(void *ptr, int value, size_t num) {
 
 
 template <typename PixelType>
-static void fillBorders(uint8_t *dstp8, int width, int height, int stride, int left, int right, int top, int bottom, int mode) {
+static void fillBorders(uint8_t *dstp8, int width, int height, int stride, int left, int right, int top, int bottom, int mode, int interlaced) {
    int x, y;
    PixelType *dstp = (PixelType *)dstp8;
    stride /= sizeof(PixelType);
@@ -58,14 +66,14 @@ static void fillBorders(uint8_t *dstp8, int width, int height, int stride, int l
       for (y = top - 1; y >= 0; y--) {
          // copy first pixel
          // copy last eight pixels
-         dstp[stride*y] = dstp[stride*(y+1)];
-         memcpy(dstp + stride*y + width - 8, dstp + stride*(y+1) + width - 8, 8 * sizeof(PixelType));
+         dstp[stride*y] = dstp[stride*(y+1 + interlaced)];
+         memcpy(dstp + stride*y + width - 8, dstp + stride*(y+1 + interlaced) + width - 8, 8 * sizeof(PixelType));
 
          // weighted average for the rest
          for (x = 1; x < width - 8; x++) {
-            PixelType prev = dstp[stride*(y+1) + x - 1];
-            PixelType cur  = dstp[stride*(y+1) + x];
-            PixelType next = dstp[stride*(y+1) + x + 1];
+            PixelType prev = dstp[stride*(y+1 + interlaced) + x - 1];
+            PixelType cur  = dstp[stride*(y+1 + interlaced) + x];
+            PixelType next = dstp[stride*(y+1 + interlaced) + x + 1];
             dstp[stride*y + x] = (3*prev + 2*cur + 3*next + 4) / 8;
          }
       }
@@ -73,14 +81,14 @@ static void fillBorders(uint8_t *dstp8, int width, int height, int stride, int l
       for (y = height - bottom; y < height; y++) {
          // copy first pixel
          // copy last eight pixels
-         dstp[stride*y] = dstp[stride*(y-1)];
-         memcpy(dstp + stride*y + width - 8, dstp + stride*(y-1) + width - 8, 8 * sizeof(PixelType));
+         dstp[stride*y] = dstp[stride*(y-1 - interlaced)];
+         memcpy(dstp + stride*y + width - 8, dstp + stride*(y-1 - interlaced) + width - 8, 8 * sizeof(PixelType));
 
          // weighted average for the rest
          for (x = 1; x < width - 8; x++) {
-            PixelType prev = dstp[stride*(y-1) + x - 1];
-            PixelType cur  = dstp[stride*(y-1) + x];
-            PixelType next = dstp[stride*(y-1) + x + 1];
+            PixelType prev = dstp[stride*(y-1 - interlaced) + x - 1];
+            PixelType cur  = dstp[stride*(y-1 - interlaced) + x];
+            PixelType next = dstp[stride*(y-1 - interlaced) + x + 1];
             dstp[stride*y + x] = (3*prev + 2*cur + 3*next + 4) / 8;
          }
       }
@@ -90,12 +98,12 @@ static void fillBorders(uint8_t *dstp8, int width, int height, int stride, int l
          vs_memset16<PixelType>(dstp + stride*y + width - right, (dstp + stride*y + width - right)[-1], right);
       }
 
-      for (y = 0; y < top; y++) {
-         memcpy(dstp + stride*y, dstp + stride*top, stride * sizeof(PixelType));
+      for (y = top - 1; y >= 0; y--) {
+         memcpy(dstp + stride*y, dstp + stride*(y+1 + interlaced), stride * sizeof(PixelType));
       }
 
       for (y = height - bottom; y < height; y++) {
-         memcpy(dstp + stride*y, dstp + stride*(height - bottom - 1), stride * sizeof(PixelType));
+         memcpy(dstp + stride*y, dstp + stride*(y-1 - interlaced), stride * sizeof(PixelType));
       }
    } else if (mode == ModeMirror) {
       for (y = top; y < height - bottom; y++) {
@@ -108,12 +116,40 @@ static void fillBorders(uint8_t *dstp8, int width, int height, int stride, int l
          }
       }
 
-      for (y = 0; y < top; y++) {
-         memcpy(dstp + stride*y, dstp + stride*(top*2 - 1 - y), stride * sizeof(PixelType));
-      }
+      if (interlaced) {
+          int field0_top = top / 2 + top % 2;
+          int field1_top = top / 2;
 
-      for (y = 0; y < bottom; y++) {
-         memcpy(dstp + stride*(height - bottom + y), dstp + stride*(height - bottom - 1 - y), stride * sizeof(PixelType));
+          for (y = 0; y < field0_top; y++)
+              memcpy(dstp + stride * y * 2,
+                     dstp + stride * (field0_top * 2 - 1 - y) * 2,
+                     stride * sizeof(PixelType));
+
+          for (y = 0; y < field1_top; y++)
+              memcpy(dstp + stride * y * 2 + stride,
+                     dstp + stride * (field1_top * 2 - 1 - y) * 2 + stride,
+                     stride * sizeof(PixelType));
+
+          int field0_bottom = bottom / 2;
+          int field1_bottom = bottom / 2 + bottom % 2;
+
+          for (y = 0; y < field0_bottom; y++)
+              memcpy(dstp + stride * (height - (field0_bottom + y) * 2),
+                     dstp + stride * (height - (field0_bottom - 1 - y) * 2),
+                     stride * sizeof(PixelType));
+
+          for (y = 0; y < field1_bottom; y++)
+              memcpy(dstp + stride * (height - (field1_bottom + y) * 2) + stride,
+                     dstp + stride * (height - (field1_bottom - 1 - y) * 2) + stride,
+                     stride * sizeof(PixelType));
+      } else {
+          for (y = 0; y < top; y++) {
+             memcpy(dstp + stride*y, dstp + stride*(top*2 - 1 - y), stride * sizeof(PixelType));
+          }
+
+          for (y = 0; y < bottom; y++) {
+             memcpy(dstp + stride*(height - bottom + y), dstp + stride*(height - bottom - 1 - y), stride * sizeof(PixelType));
+          }
       }
    }
 }
@@ -130,6 +166,29 @@ static const VSFrameRef *VS_CC fillBordersGetFrame(int n, int activationReason, 
       int plane;
       vsapi->freeFrame(src);
 
+      int interlaced_processing = 0;
+
+      if (d->interlaced == Interlaced)
+          interlaced_processing = 1;
+      else if (d->interlaced == NotInterlaced)
+          interlaced_processing = 0;
+      else if (d->interlaced == InterlacedAuto) {
+          enum FieldBased {
+              Progressive = 0,
+              BottomFieldFirst = 1,
+              TopFieldFirst = 2
+          };
+
+          const VSMap *props = vsapi->getFramePropsRO(dst);
+
+          int err;
+          int64_t field_based = vsapi->propGetInt(props, "_FieldBased", 0, &err);
+          if (err || field_based == Progressive)
+              interlaced_processing = 0;
+          else
+              interlaced_processing = 1;
+      }
+
       int left[2] = { d->left, d->left >> d->vi->format->subSamplingW };
       int top[2] = { d->top, d->top >> d->vi->format->subSamplingH };
       int right[2] = { d->right, d->right >> d->vi->format->subSamplingW };
@@ -142,7 +201,7 @@ static const VSFrameRef *VS_CC fillBordersGetFrame(int n, int activationReason, 
          int stride = vsapi->getStride(dst, plane);
 
          (d->vi->format->bytesPerSample == 1 ? fillBorders<uint8_t>
-                                             : fillBorders<uint16_t>)(dstp, width, height, stride, left[!!plane], right[!!plane], top[!!plane], bottom[!!plane], d->mode);
+                                             : fillBorders<uint16_t>)(dstp, width, height, stride, left[!!plane], right[!!plane], top[!!plane], bottom[!!plane], d->mode, interlaced_processing);
       }
 
       return dst;
@@ -185,6 +244,11 @@ static void VS_CC fillBordersCreate(const VSMap *in, VSMap *out, void *userData,
          return;
       }
    }
+
+   d.interlaced = !!vsapi->propGetInt(in, "interlaced", 0, &err);
+   if (err)
+       d.interlaced = NotInterlaced;
+
 
    if (d.left < 0 || d.right < 0 || d.top < 0 || d.bottom < 0) {
       vsapi->setError(out, "FillBorders: Can't fill a negative number of pixels.");
@@ -238,6 +302,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
                 "right:int:opt;"
                 "top:int:opt;"
                 "bottom:int:opt;"
-                "mode:data:opt;",
-                fillBordersCreate, 0, plugin);
+                "mode:data:opt;"
+                "interlaced:int:opt;"
+                , fillBordersCreate, 0, plugin);
 }
