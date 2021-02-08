@@ -1,13 +1,13 @@
-AC_INIT([FillBorders], [1], [https://github.com/dubhater/vapoursynth-fillborders/issues], [fillborders], [https://github.com/dubhater/vapoursynth-fillborders/])
+AC_INIT([FillBorders], [2], [https://github.com/dubhater/vapoursynth-fillborders/issues], [fillborders], [https://github.com/dubhater/vapoursynth-fillborders/])
 
-: ${CFLAGS="-O2"}
+: ${CXXFLAGS=""}
 
 AM_INIT_AUTOMAKE([foreign no-dist-gzip dist-xz subdir-objects no-define])
 AM_SILENT_RULES([yes])
 
 LT_INIT([disable-static win32-dll])
 
-AC_PROG_CC
+AC_PROG_CXX
 
 AC_CANONICAL_HOST
 
