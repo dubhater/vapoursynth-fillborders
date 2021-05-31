@@ -23,6 +23,9 @@ mode
    "fillmargins"
       Fills the borders exactly like the Avisynth filter `FillMargins <http://forum.doom9.org/showthread.php?t=50132>`_, version 1.0.2.0. This mode is similar to "repeat", except that each pixel at the top and bottom borders is filled with a weighted average of its three neighbours from the previous line.
 
+   "fixborders"
+      A direction "aware" modification of FillMargins. It also works on all four sides.
+
    "interlaced"
       Fills the top and bottom borders only with pixels taken from the same field. Possible values are 1 (always on), 0 (always off), and -1 (uses the _FieldBased frame property to decide if interlaced processing should be used or not).
 
