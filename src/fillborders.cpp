@@ -207,7 +207,7 @@ static void fillBorders(uint8_t *dstp8, int width, int height, int stride, int l
          // copy last eight pixels
          dstp[x] = dstp[x+1];
 	 for (y = 8; y > 0; y--) {
-		 dstp[stride*(height - y) + x] = dstp[stride*(height - y) + x + 1];
+		 dstp[stride*(height - y) + x] = dstp[stride*(height - y) + x - 1];
 	 }
 
          // weighted average for the rest
