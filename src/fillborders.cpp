@@ -158,29 +158,31 @@ static void fillBorders(uint8_t *dstp8, int width, int height, int stride, int l
    } else if (mode == ModeFixBorders) {
 
       for (x = left - 1; x >= 0; x--) {
-         // copy first pixel
-         // copy last eight pixels
-         dstp[x] = dstp[x+1];
-	 for (y = 8; y > 0; y--) {
-		 dstp[stride*(height - y) + x] = dstp[stride*(height - y) + x + 1];
+	 // copy pixels until top + 3/bottom + 3
+	 // this way we avoid darkened corners when all sides need filling
+	 for (y = 0; y < top + 3; y++) {
+	    dstp[stride*y + x] = dstp[stride*y + x + 1];
+	 }
+	 for (y = bottom + 3; y > 0; y--) {
+            dstp[stride*(height - y) + x] = dstp[stride*(height - y) + x + 1];
 	 }
 
          // weighted average for the rest
-         for (y = 1; y < height - 8; y++) {
-            PixelType prev = dstp[stride*(y - 1) +x+1];
+         for (y = top + 3; y < height - (bottom + 3); y++) {
+            PixelType prev = dstp[stride*(y - 1 - interlaced) +x+1];
             PixelType cur  = dstp[stride*(y) +x+1];
-            PixelType next = dstp[stride*(y + 1) +x+1];
+            PixelType next = dstp[stride*(y + 1 + interlaced) +x+1];
 
-            PixelType ref_prev = dstp[stride*(y - 1) +x+2];
+            PixelType ref_prev = dstp[stride*(y - 1 - interlaced) +x+2];
             PixelType ref_cur  = dstp[stride*(y) +x+2];
-            PixelType ref_next = dstp[stride*(y + 1) +x+2];
+            PixelType ref_next = dstp[stride*(y + 1 + interlaced) +x+2];
 
 	    PixelType fill_prev = (5*prev + 3*cur + 1*next) / 9 + 0.5;
 	    PixelType fill_cur = (1*prev + 3*cur + 1*next) / 5 + 0.5;
 	    PixelType fill_next = (1*prev + 3*cur + 5*next) / 9 + 0.5;
 
-	    PixelType blur_prev = (2 * ref_prev + ref_cur + dstp[stride*(y - 2) + x+2]) / 4;
-	    PixelType blur_next = (2 * ref_next + ref_cur + dstp[stride*(y + 2) + x+2]) / 4;
+	    PixelType blur_prev = (2 * ref_prev + ref_cur + dstp[stride*(y - 2 - interlaced) + x+2]) / 4;
+	    PixelType blur_next = (2 * ref_next + ref_cur + dstp[stride*(y + 2 + interlaced) + x+2]) / 4;
 
 	    PixelType diff_next = abs(ref_next - fill_cur);
 	    PixelType diff_prev = abs(ref_prev - fill_cur);
@@ -203,29 +205,31 @@ static void fillBorders(uint8_t *dstp8, int width, int height, int stride, int l
       }
 
       for (x = width - right; x < width; x++) {
-         // copy first pixel
-         // copy last eight pixels
-         dstp[x] = dstp[x+1];
-	 for (y = 8; y > 0; y--) {
-		 dstp[stride*(height - y) + x] = dstp[stride*(height - y) + x - 1];
+	 // copy pixels until top + 3/bottom + 3
+	 // this way we avoid darkened corners when all sides need filling
+	 for (y = 0; y < top + 3; y++) {
+            dstp[stride*y + x] = dstp[stride*y + x - 1];
+	 }
+	 for (y = bottom + 3; y > 0; y--) {
+	    dstp[stride*(height - y) + x] = dstp[stride*(height - y) + x - 1];
 	 }
 
          // weighted average for the rest
-         for (y = 1; y < height - 8; y++) {
-            PixelType prev = dstp[stride*(y - 1) + x-1 - interlaced];
-            PixelType cur  = dstp[stride*(y) + x-1 - interlaced];
-            PixelType next = dstp[stride*(y + 1) + x-1 - interlaced];
+         for (y = top + 3; y < height - (bottom + 3); y++) {
+            PixelType prev = dstp[stride*(y - 1 - interlaced) + x-1];
+            PixelType cur  = dstp[stride*(y) + x-1];
+            PixelType next = dstp[stride*(y + 1 + interlaced) + x-1];
 
-            PixelType ref_prev = dstp[stride*(y - 1) + x-2 + interlaced];
-            PixelType ref_cur  = dstp[stride*(y) + x-2 + interlaced];
-            PixelType ref_next = dstp[stride*(y + 1) + x-2 + interlaced];
+            PixelType ref_prev = dstp[stride*(y - 1 - interlaced) + x-2];
+            PixelType ref_cur  = dstp[stride*(y) + x-2];
+            PixelType ref_next = dstp[stride*(y + 1 + interlaced) + x-2];
 	    
 	    PixelType fill_prev = (5*prev + 3*cur + 1*next) / 9 + 0.5;
 	    PixelType fill_cur = (1*prev + 3*cur + 1*next) / 5 + 0.5;
 	    PixelType fill_next = (1*prev + 3*cur + 5*next) / 9 + 0.5;
 
-	    PixelType blur_prev = (2 * ref_prev + ref_cur + dstp[stride*(y - 2) + x-2 + interlaced]) / 4;
-	    PixelType blur_next = (2 * ref_next + ref_cur + dstp[stride*(y + 2) + x-2 + interlaced]) / 4;
+	    PixelType blur_prev = (2 * ref_prev + ref_cur + dstp[stride*(y - 2 - interlaced) + x-2]) / 4;
+	    PixelType blur_next = (2 * ref_next + ref_cur + dstp[stride*(y + 2 + interlaced) + x-2]) / 4;
 
 	    PixelType diff_next = abs(ref_next - fill_cur);
 	    PixelType diff_prev = abs(ref_prev - fill_cur);
