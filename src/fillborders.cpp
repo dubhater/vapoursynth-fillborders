@@ -138,13 +138,13 @@ static void fillBorders(uint8_t *dstp8, int width, int height, int stride, int l
           int field1_bottom = bottom / 2 + bottom % 2;
 
           for (y = 0; y < field0_bottom; y++)
-              memcpy(dstp + stride * (height - (field0_bottom + y) * 2),
-                     dstp + stride * (height - (field0_bottom - 1 - y) * 2),
+              memcpy(dstp + stride * (height - field0_bottom * 2 + y * 2),
+                     dstp + stride * (height - field0_bottom * 2 - 2 - y * 2),
                      stride * sizeof(PixelType));
 
           for (y = 0; y < field1_bottom; y++)
-              memcpy(dstp + stride * (height - (field1_bottom + y) * 2) + stride,
-                     dstp + stride * (height - (field1_bottom - 1 - y) * 2) + stride,
+              memcpy(dstp + stride * (height - field1_bottom * 2 + y * 2) + stride,
+                     dstp + stride * (height - field1_bottom * 2 - 2 - y * 2) + stride,
                      stride * sizeof(PixelType));
       } else {
           for (y = 0; y < top; y++) {
